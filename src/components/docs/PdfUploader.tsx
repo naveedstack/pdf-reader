@@ -17,7 +17,6 @@ export function PdfUploader({ onUploadComplete }: { onUploadComplete?: () => voi
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  // Initialize UploadThing hook
   const { startUpload, isUploading } = useUploadThing("pdfUploader", {
     onUploadProgress: (p) => {
       setProgress(p);
@@ -29,29 +28,48 @@ export function PdfUploader({ onUploadComplete }: { onUploadComplete?: () => voi
       const docId = crypto.randomUUID();
 
       try {
-        // Save the metadata to Firestore
+        console.log("File uploaded to storage! URL:", uploadedFile.url);
+        
+        // 1. Save the metadata to Firestore
         await setDoc(doc(db, `workspaces/${user.uid}/documents`, docId), {
           fileName: file.name,
-          storageUrl: uploadedFile.url, // URL from UploadThing
+          storageUrl: uploadedFile.url,
           sizeBytes: uploadedFile.size,
           status: "PENDING", 
           uploadedBy: user.uid,
           createdAt: serverTimestamp(),
         });
+        
+        console.log("Firestore record created. Triggering Pinecone ingestion...");
 
+        // 2. Trigger the backend ingestion pipeline
+        fetch("/api/ingest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileUrl: uploadedFile.url,
+            documentId: docId,
+            workspaceId: user.uid,
+          }),
+        }).catch(err => console.error("Failed to trigger ingestion API:", err));
+
+        // 3. Reset UI
         setFile(null);
         setProgress(0);
         if (onUploadComplete) onUploadComplete();
+
       } catch (err: any) {
-        setError("Failed to save document record: " + err.message);
+        console.error("FIRESTORE ERROR:", err); 
+        setError("Failed to save to database: " + err.message);
       }
     },
     onUploadError: (e) => {
+      console.error("UPLOADTHING ERROR:", e);
       setError("Upload failed: " + e.message);
     },
   });
 
-  const MAX_FILE_SIZE = 32 * 1024 * 1024; // 32MB limit matching our server config
+  const MAX_FILE_SIZE = 32 * 1024 * 1024; // 32MB limit
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
@@ -73,8 +91,6 @@ export function PdfUploader({ onUploadComplete }: { onUploadComplete?: () => voi
   const handleUpload = async () => {
     if (!file || !user) return;
     setError(null);
-    
-    // This triggers the UploadThing flow, which calls the callbacks above
     await startUpload([file]);
   };
 
@@ -118,7 +134,7 @@ export function PdfUploader({ onUploadComplete }: { onUploadComplete?: () => voi
 
           {isUploading ? (
             <div className="w-full space-y-2">
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between text-sm text-slate-600">
                 <span>Uploading to Secure Storage...</span>
                 <span>{Math.round(progress)}%</span>
               </div>
