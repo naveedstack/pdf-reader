@@ -4,7 +4,10 @@ const f = createUploadthing();
 
 export const ourFileRouter = {
   // Define a route strictly for PDFs, up to 32MB
-  pdfUploader: f({ pdf: { maxFileSize: "32MB", maxFileCount: 1 } })
+  pdfUploader: f({
+    pdf: { maxFileSize: "32MB" },
+    blob: { maxFileSize: "32MB" } // blob allows other document formats
+  })
     .onUploadComplete(async ({ metadata, file }) => {
       // This code runs on your Next.js server after the upload finishes
       console.log("Upload complete for url:", file.url);

@@ -3,7 +3,7 @@
 import React, { useState, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { db } from "@/lib/firebase/config";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { useUploadThing } from "@/utils/uploadthing";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -28,39 +28,53 @@ export function PdfUploader({ onUploadComplete }: { onUploadComplete?: () => voi
       const docId = crypto.randomUUID();
 
       try {
-        console.log("File uploaded to storage! URL:", uploadedFile.url);
+        console.log("File uploaded to storage! URL:", uploadedFile.ufsUrl); 
         
-        // 1. Save the metadata to Firestore
-        await setDoc(doc(db, `workspaces/${user.uid}/documents`, docId), {
+        const documentRef = doc(db, `workspaces/${user.uid}/documents`, docId);
+
+        // 1. Save metadata to Firestore
+        await setDoc(documentRef, {
           fileName: file.name,
-          storageUrl: uploadedFile.url,
+          storageUrl: uploadedFile.ufsUrl, 
           sizeBytes: uploadedFile.size,
-          status: "PENDING", 
+          status: "PROCESSING", 
           uploadedBy: user.uid,
           createdAt: serverTimestamp(),
         });
         
-        console.log("Firestore record created. Triggering Pinecone ingestion...");
+        console.log("Firestore record created. Triggering AI ingestion...");
 
-        // 2. Trigger the backend ingestion pipeline
-        fetch("/api/ingest", {
+        // 2. Trigger the backend ingestion pipeline (Now passing fileName!)
+        const response = await fetch("/api/ingest", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            fileUrl: uploadedFile.url,
+            fileUrl: uploadedFile.ufsUrl, 
             documentId: docId,
             workspaceId: user.uid,
+            fileName: file.name, // The backend needs this to know the format
           }),
-        }).catch(err => console.error("Failed to trigger ingestion API:", err));
+        });
 
-        // 3. Reset UI
+        const data = await response.json();
+
+        // 3. Update Firestore based on backend result
+        if (response.ok && data.success) {
+          console.log("Backend ingestion SUCCESS!");
+          await updateDoc(documentRef, { status: "READY" });
+        } else {
+          console.error("BACKEND INGESTION ERROR:", data.error);
+          await updateDoc(documentRef, { status: "FAILED" });
+          setError("Processing failed: " + data.error);
+        }
+
         setFile(null);
         setProgress(0);
         if (onUploadComplete) onUploadComplete();
 
       } catch (err: any) {
-        console.error("FIRESTORE ERROR:", err); 
-        setError("Failed to save to database: " + err.message);
+        console.error("PIPELINE ERROR:", err); 
+        setError("An error occurred: " + err.message);
       }
     },
     onUploadError: (e) => {
@@ -76,8 +90,18 @@ export function PdfUploader({ onUploadComplete }: { onUploadComplete?: () => voi
     const selected = e.target.files?.[0];
     
     if (!selected) return;
-    if (selected.type !== "application/pdf") {
-      setError("Please select a valid PDF file.");
+
+    // Expand validation to include PDF, Word, and PPT
+    const validTypes = [
+      "application/pdf", 
+      "application/msword", // .doc
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+      "application/vnd.ms-powerpoint", // .ppt
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation" // .pptx
+    ];
+
+    if (!validTypes.includes(selected.type)) {
+      setError("Please select a PDF, Word (.docx), or PowerPoint (.pptx) file.");
       return;
     }
     if (selected.size > MAX_FILE_SIZE) {
@@ -98,7 +122,7 @@ export function PdfUploader({ onUploadComplete }: { onUploadComplete?: () => voi
     <div className="border-2 border-dashed rounded-xl p-8 text-center bg-slate-50 hover:bg-slate-100 transition-colors">
       <input
         type="file"
-        accept="application/pdf"
+        accept=".pdf,.doc,.docx,.ppt,.pptx"
         className="hidden"
         ref={fileInputRef}
         onChange={handleFileSelect}
@@ -109,8 +133,8 @@ export function PdfUploader({ onUploadComplete }: { onUploadComplete?: () => voi
           <div className="bg-primary/10 p-4 rounded-full mb-4 cursor-pointer" onClick={() => fileInputRef.current?.click()}>
             <UploadCloud className="h-10 w-10 text-primary" />
           </div>
-          <h3 className="text-lg font-semibold">Click to upload a PDF</h3>
-          <p className="text-sm text-slate-500 mt-1 mb-4">or drag and drop it here (Max 32MB)</p>
+          <h3 className="text-lg font-semibold">Click to upload a document</h3>
+          <p className="text-sm text-slate-500 mt-1 mb-4">Supports PDF, DOCX, and PPTX (Max 32MB)</p>
           <Button onClick={() => fileInputRef.current?.click()} variant="outline">
             Browse Files
           </Button>
