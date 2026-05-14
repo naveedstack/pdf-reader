@@ -3,11 +3,11 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { db } from "@/lib/firebase/config";
-import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, deleteDoc, doc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PdfUploader } from "@/components/docs/PdfUploader";
-import { Plus, FileText, Loader2, MessageSquare } from "lucide-react";
+import { Plus, FileText, Loader2, MessageSquare, Trash2 } from "lucide-react";
 import Link from "next/link";
 
 // Define the shape of our Firestore document
@@ -17,6 +17,7 @@ interface DocumentRecord {
   sizeBytes: number;
   status: "PENDING" | "PROCESSING" | "READY" | "FAILED";
   createdAt: any;
+  storageUrl?: string;
 }
 
 export default function DocumentsPage() {
@@ -24,6 +25,44 @@ export default function DocumentsPage() {
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [showUploader, setShowUploader] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (docObj: DocumentRecord) => {
+    if (!user) return;
+    
+    // Ask for confirmation
+    const confirmed = window.confirm(`Are you sure you want to delete "${docObj.fileName}"? This action cannot be undone.`);
+    if (!confirmed) return;
+
+    setDeletingId(docObj.id);
+
+    try {
+      // 1. Delete from UploadThing and Pinecone via our new API
+      const response = await fetch("/api/documents", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          documentId: docObj.id,
+          workspaceId: user.uid,
+          storageUrl: docObj.storageUrl
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to delete remote resources.");
+      }
+
+      // 2. Delete from Firestore
+      await deleteDoc(doc(db, `workspaces/${user.uid}/documents/${docObj.id}`));
+
+    } catch (error) {
+      console.error("Deletion failed:", error);
+      alert("Failed to delete document. Please try again.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   // Real-time Firestore Listener
   useEffect(() => {
@@ -120,18 +159,31 @@ export default function DocumentsPage() {
                   <div className="col-span-2">
                     <StatusBadge status={doc.status} />
                   </div>
-                  <div className="col-span-2 text-right">
+                  <div className="col-span-2 text-right flex items-center justify-end gap-1">
                     <Button 
                       size="sm" 
                       variant="ghost" 
                       asChild
-                      disabled={doc.status !== "READY"}
+                      disabled={doc.status !== "READY" || deletingId === doc.id}
                     >
-                      {/* This link will eventually route to the specific chat session for this doc */}
                       <Link href={`/chat/${doc.id}`} className="flex items-center text-primary">
                         <MessageSquare className="h-4 w-4 mr-2" />
                         Chat
                       </Link>
+                    </Button>
+
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      className="text-red-500 hover:text-red-600 hover:bg-red-50 px-2"
+                      disabled={deletingId === doc.id}
+                      onClick={() => handleDelete(doc)}
+                    >
+                      {deletingId === doc.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
                     </Button>
                   </div>
                 </div>

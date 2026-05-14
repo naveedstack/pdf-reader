@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
+
 import { ArrowRight, FileText, MessageSquare, ShieldCheck } from "lucide-react";
 
 export default function LandingPage() {
@@ -10,32 +11,6 @@ export default function LandingPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
-      {/* Navigation */}
-      <header className="px-6 py-4 flex items-center justify-between border-b">
-        <div className="flex items-center gap-2 font-bold text-xl tracking-tight">
-          <div className="bg-primary p-1.5 rounded-lg">
-            <FileText className="text-white h-5 w-5" />
-          </div>
-          <span>DocuMind AI</span>
-        </div>
-        <div className="flex gap-4">
-          {user ? (
-            <Button asChild variant="default">
-              <Link href="/documents">Go to Dashboard</Link>
-            </Button>
-          ) : (
-            <>
-              <Button asChild variant="ghost">
-                <Link href="/login">Login</Link>
-              </Button>
-              <Button asChild>
-                <Link href="/signup">Get Started</Link>
-              </Button>
-            </>
-          )}
-        </div>
-      </header>
-
       {/* Hero Section */}
       <main className="flex-1">
         <section className="py-20 px-6 text-center max-w-4xl mx-auto">
@@ -77,7 +52,7 @@ export default function LandingPage() {
       </main>
 
       <footer className="py-10 border-t text-center text-slate-500 text-sm">
-        © 2026 DocuMind AI. Built by Anees Malik.
+        © 2026 DocuMind AI. Built by Naveed Ul Rehman.
       </footer>
     </div>
   );

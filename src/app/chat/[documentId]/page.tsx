@@ -7,7 +7,6 @@ import { useParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Bot, User, Loader2, AlertCircle } from "lucide-react";
 
 // TODO: Ensure this path matches exactly where you initialize Firebase in your project!
@@ -93,7 +92,7 @@ export default function ChatPage() {
   // --- 5. AUTO-SCROLL TO BOTTOM ---
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      scrollRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, error]);
 
@@ -108,30 +107,37 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)] max-w-4xl mx-auto p-4">
-      <ScrollArea className="flex-1 pr-4 mb-4 border rounded-lg bg-slate-50/50 p-4" ref={scrollRef}>
+    <div className="flex flex-col h-[calc(100dvh-80px)] w-full max-w-4xl mx-auto p-4 md:p-6 bg-slate-50/30">
+      <div className="flex-1 overflow-y-auto scroll-smooth custom-scrollbar mb-4 bg-white border shadow-sm rounded-2xl p-4 md:p-6 flex flex-col relative">
         
         {/* Loading History State */}
         {isFetchingHistory ? (
-          <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4">
-            <Loader2 className="h-8 w-8 animate-spin" />
-            <p>Loading your conversation...</p>
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 space-y-4 animate-in fade-in duration-500">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="font-medium text-slate-500">Loading your conversation...</p>
           </div>
         ) : messages.length === 0 && !error ? (
-          <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-2">
-            <Bot className="h-12 w-12" />
-            <p>The document is ready. Ask me anything about it!</p>
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 space-y-4 animate-in fade-in zoom-in-95 duration-500">
+            <div className="bg-primary/10 p-6 rounded-full shadow-inner mb-2">
+              <Bot className="h-14 w-14 text-primary animate-bounce" />
+            </div>
+            <h3 className="text-xl font-semibold text-slate-700">Document is Ready</h3>
+            <p className="text-center max-w-sm text-slate-500">I've analyzed the document. You can ask me anything about its contents, request summaries, or extract key points!</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-6 pb-2">
             {messages.map((m) => (
-              <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`flex items-start gap-3 max-w-[80%] ${m.role === "user" ? "flex-row-reverse" : ""}`}>
-                  <div className={`p-2 rounded-full flex-shrink-0 ${m.role === "user" ? "bg-primary text-white" : "bg-white border"}`}>
+              <div key={m.id} className={`flex w-full animate-in fade-in slide-in-from-bottom-2 duration-300 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div className={`flex items-end gap-2 max-w-[85%] md:max-w-[75%] ${m.role === "user" ? "flex-row-reverse" : ""}`}>
+                  <div className={`p-2 rounded-full flex-shrink-0 shadow-sm ${m.role === "user" ? "bg-primary text-white" : "bg-white border text-primary"}`}>
                     {m.role === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
                   </div>
-                  <div className={`p-3 rounded-2xl shadow-sm ${m.role === "user" ? "bg-primary text-white" : "bg-white border"}`}>
-                    <div className="text-sm whitespace-pre-wrap">
+                  <div className={`px-4 py-3 rounded-2xl shadow-sm ${
+                    m.role === "user" 
+                      ? "bg-primary text-white rounded-br-sm" 
+                      : "bg-white border border-slate-100 text-slate-800 rounded-bl-sm"
+                  }`}>
+                    <div className="text-[15px] leading-relaxed whitespace-pre-wrap">
                       {m.parts ? m.parts.map((part, index) => 
                         part.type === 'text' ? <span key={index}>{part.text}</span> : null
                       ) : (m as any).content}
@@ -143,10 +149,10 @@ export default function ChatPage() {
 
             {/* Error Message UI */}
             {error && (
-              <div className="flex justify-center my-4">
-                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl flex items-center gap-3 text-sm max-w-[80%] shadow-sm">
-                  <AlertCircle className="h-5 w-5 flex-shrink-0" />
-                  <p>
+              <div className="flex justify-center my-6 animate-in fade-in slide-in-from-bottom-4">
+                <div className="bg-red-50 border border-red-200 text-red-700 px-5 py-4 rounded-xl flex items-center gap-3 text-sm max-w-[85%] shadow-sm">
+                  <AlertCircle className="h-5 w-5 flex-shrink-0 text-red-500" />
+                  <p className="font-medium">
                     {error.message.includes("429") 
                       ? "Google API Quota Exceeded. Please wait a minute before sending another message."
                       : error.message}
@@ -157,28 +163,41 @@ export default function ChatPage() {
 
             {/* Thinking / Streaming Indicator */}
             {isLoading && messages[messages.length - 1]?.role === "user" && !error && (
-               <div className="flex justify-start">
-                 <div className="bg-white border p-3 rounded-2xl shadow-sm flex items-center gap-2">
-                   <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
-                   <span className="text-sm text-slate-400">Thinking...</span>
+               <div className="flex justify-start w-full animate-in fade-in slide-in-from-bottom-2">
+                 <div className="flex items-end gap-2">
+                   <div className="p-2 rounded-full bg-white border text-primary shadow-sm flex-shrink-0">
+                     <Bot className="h-4 w-4" />
+                   </div>
+                   <div className="bg-white border border-slate-100 px-4 py-3 rounded-2xl rounded-bl-sm shadow-sm flex items-center gap-3">
+                     <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                     <span className="text-sm font-medium text-slate-500">Thinking...</span>
+                   </div>
                  </div>
                </div>
             )}
+            
+            {/* Invisible div for reliable auto-scrolling */}
+            <div ref={scrollRef} className="h-px" />
           </div>
         )}
-      </ScrollArea>
+      </div>
 
-      {/* Input Form */}
-      <form onSubmit={handleSubmit} className="flex gap-2 p-2 border rounded-xl bg-white shadow-lg">
+      {/* Floating Input Form */}
+      <form onSubmit={handleSubmit} className="relative flex gap-2 p-2 border border-slate-200 rounded-2xl bg-white/80 backdrop-blur-md shadow-lg transition-all focus-within:shadow-xl focus-within:border-primary/30 mx-auto w-full shrink-0">
         <Input
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           placeholder="Ask a question about this document..."
-          className="border-none focus-visible:ring-0"
+          className="border-none focus-visible:ring-0 bg-transparent text-[15px] px-4 py-6 h-auto placeholder:text-slate-400"
           disabled={isFetchingHistory}
         />
-        <Button type="submit" disabled={isLoading || !inputText.trim() || isFetchingHistory}>
-          {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+        <Button 
+          type="submit" 
+          size="icon"
+          className="h-auto w-12 rounded-xl shrink-0 transition-transform hover:scale-105 active:scale-95"
+          disabled={isLoading || !inputText.trim() || isFetchingHistory}
+        >
+          {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5 ml-0.5" />}
         </Button>
       </form>
     </div>
