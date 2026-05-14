@@ -11,8 +11,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Bot, User, Loader2, AlertCircle } from "lucide-react";
 
 // TODO: Ensure this path matches exactly where you initialize Firebase in your project!
+import { db } from "@/lib/firebase/config"; 
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase/config";
 
 export default function ChatPage() {
   const { documentId } = useParams();
@@ -72,9 +72,13 @@ export default function ChatPage() {
       if (messages.length > 0 && status !== "streaming" && status !== "submitted" && !isFetchingHistory) {
         try {
           const docRef = doc(db, "chats", documentId as string);
+          
+          // Deep clean the messages array to strip ALL undefined values so Firebase doesn't crash
+          const sanitizedMessages = JSON.parse(JSON.stringify(messages));
+
           await setDoc(docRef, {
-            messages: messages,
-            workspaceId: user?.uid || null, // <-- Fix: Fallback to null instead of undefined
+            messages: sanitizedMessages,
+            workspaceId: user?.uid || null, // Fallback to null instead of undefined
             updatedAt: new Date().toISOString()
           }, { merge: true }); // Merge ensures we don't overwrite other document data
         } catch (err) {

@@ -26,39 +26,33 @@ export async function POST(req: Request) {
     console.log(`Detected file type: .${extension}. Routing to parser...`);
 
     if (extension === "pdf") {
-      // --- THE PDF PARSER (With Turbopack Fix) ---
+      // --- THE PDF PARSER ---
       const pdfParseModule: any = await import("pdf-parse");
-      const extractText =
-        typeof pdfParseModule === "function" ? pdfParseModule :
-          typeof pdfParseModule.default === "function" ? pdfParseModule.default :
-            typeof pdfParseModule.PDFParse === "function" ? pdfParseModule.PDFParse :
+      
+      if (pdfParseModule.PDFParse) {
+        // pdf-parse v2.4.5+ uses a class-based API
+        const parser = new pdfParseModule.PDFParse({ data: buffer });
+        const textResult = await parser.getText();
+        rawText = textResult.text || "";
+      } else {
+        // Fallback for older pdf-parse versions
+        const extractText =
+          typeof pdfParseModule === "function" ? pdfParseModule :
+            typeof pdfParseModule.default === "function" ? pdfParseModule.default :
               typeof pdfParseModule.default?.default === "function" ? pdfParseModule.default.default :
                 null;
 
-      if (!extractText) throw new Error("Could not extract pdf-parse function.");
+        if (!extractText) throw new Error("Could not extract pdf-parse function.");
 
-      let pdfData: any;
-      try {
-        pdfData = await extractText(buffer);
-      } catch (parseError: any) {
-        if (parseError.message && parseError.message.includes("without 'new'")) {
-          const instance = new (extractText as any)(buffer);
-          pdfData = await instance;
-        } else {
-          throw parseError;
-        }
+        const pdfData: any = await extractText(buffer);
+        
+        // Aggressively hunt for the text, no matter how Turbopack structured the object
+        rawText = pdfData?.text || pdfData?.data?.text || pdfData?.info?.text || "";
       }
-
-      // Aggressively hunt for the text, no matter how Turbopack structured the object
-      rawText = pdfData?.text || pdfData?.data?.text || pdfData?.info?.text || "";
 
       // If it is still empty, log the object keys so we can see exactly what Turbopack returned
       if (!rawText.trim()) {
         console.error("⚠️ PDF PARSER WARNING: Object was returned, but no text found.");
-        console.error("Available keys in returned object:", Object.keys(pdfData || {}));
-        if (pdfData?.text === "") {
-          console.error("The .text property exists, but it is completely empty. This confirms the PDF contains no readable text data (it is an image/scan).");
-        }
       }
 
     } else if (extension === "docx" || extension === "doc") {
@@ -79,14 +73,63 @@ export async function POST(req: Request) {
       throw new Error(`Unsupported file type: .${extension}`);
     }
 
-    if (!rawText.trim()) {
-      throw new Error("Text extraction resulted in empty text. The file might be an image-only document.");
+    // Basic cleanup of common page number patterns like "-- 1 of 60 --" or "Page 1"
+    const cleanedText = rawText
+      .replace(/--\s*\d+\s*of\s*\d+\s*--/gi, "")
+      .replace(/page\s*\d+/gi, "")
+      .replace(/\d+\s*\/\s*\d+/g, "");
+
+    const alphaCount = (cleanedText.match(/[a-zA-Z]/g) || []).length;
+
+    if (!cleanedText.trim() || alphaCount < 50) {
+      console.log("⚠️ Image-only PDF detected (low alphabetical characters). Falling back to Gemini for OCR extraction...");
+      try {
+        console.log("Sending PDF to Gemini 2.5 Flash via REST API for OCR...");
+        
+        const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY;
+        if (!apiKey) throw new Error("Missing Google API Key for OCR fallback.");
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { text: 'Extract all the text from this document. Output only the extracted text with proper formatting and no extra commentary. Do not include page numbers.' },
+                { inlineData: { mimeType: 'application/pdf', data: buffer.toString('base64') } }
+              ]
+            }]
+          })
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Gemini API error (${response.status}): ${errorText}`);
+        }
+
+        const result = await response.json();
+        const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+        
+        rawText = text || "";
+        console.log("Gemini OCR extraction complete. Extracted length:", rawText.length);
+        
+        if (!rawText.trim()) {
+           throw new Error("Gemini OCR returned empty text.");
+        }
+      } catch (ocrError: any) {
+        console.error("Gemini OCR Fallback failed:", ocrError);
+        throw new Error("Text extraction failed. Document appears to be image-only and Gemini OCR fallback failed: " + (ocrError.message || "Unknown error"));
+      }
+    } else {
+      // Use the cleaned text for chunking to avoid footer pollution
+      rawText = cleanedText;
     }
 
     // 3. Chunk the Text
     const chunks: string[] = [];
     let currentChunk = "";
     const lines = rawText.split("\n");
+    console.log("lines -->", lines);
 
     for (const line of lines) {
       if ((currentChunk.length + line.length) > 1000) {

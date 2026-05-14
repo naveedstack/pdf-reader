@@ -44,17 +44,20 @@ export async function POST(req: Request) {
     
     const context = contextChunks.join("\n\n---\n\n");
 
-    // 5. Send to Gemini 1.5 Flash with the retrieved context
+    // 5. Send to Gemini 2.5 Flash with the retrieved context
     const result = await streamText({
       model: google("gemini-2.5-flash"), 
       system: `You are a helpful assistant specialized in analyzing documents. 
       Use the following pieces of retrieved context to answer the user's question. 
       If the answer is not in the context, say that you don't know based on the document, but don't make up information.
+      first give answer according to above instruction in last give me a context that you get or not(just for testing)
       
       CONTEXT:
       ${context}`,
       messages: formattedMessages,
     });
+
+    console.log("context retrieved -->", context);
 
     // 6. Return the specific UI Data Stream expected by your frontend version
     const res = result.toUIMessageStreamResponse(); 
