@@ -143,13 +143,20 @@ export async function POST(req: Request) {
 
     console.log(`Created ${chunks.length} chunks. Generating embeddings...`);
 
-    // 4. Generate Embeddings using Gemini
-    const { embeddings } = await embedMany({
-      model: google.embeddingModel('gemini-embedding-2'),
-      values: chunks,
-    })
+    // 4. Generate Embeddings using Gemini in batches of 100
+    const embeddings: any[] = [];
+    const BATCH_SIZE = 100;
+    
+    for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+      const batch = chunks.slice(i, i + BATCH_SIZE);
+      const { embeddings: batchEmbeddings } = await embedMany({
+        model: google.embeddingModel('gemini-embedding-2'),
+        values: batch,
+      });
+      embeddings.push(...batchEmbeddings);
+    }
 
-    console.log("Embeddings generated successfully.", embeddings);
+    console.log(`Embeddings generated successfully. Total: ${embeddings.length}`);
 
     // 5. Upsert to Pinecone 
     console.log("Upserting vectors to Pinecone...");

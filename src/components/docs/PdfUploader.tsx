@@ -44,8 +44,13 @@ export function PdfUploader({ onUploadComplete }: { onUploadComplete?: () => voi
         
         console.log("Firestore record created. Triggering AI ingestion...");
 
-        // 2. Trigger the backend ingestion pipeline (Now passing fileName!)
-        const response = await fetch("/api/ingest", {
+        // Close modal immediately
+        setFile(null);
+        setProgress(0);
+        if (onUploadComplete) onUploadComplete();
+
+        // 2. Trigger the backend ingestion pipeline asynchronously
+        fetch("/api/ingest", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -54,26 +59,25 @@ export function PdfUploader({ onUploadComplete }: { onUploadComplete?: () => voi
             workspaceId: user.uid,
             fileName: file.name, // The backend needs this to know the format
           }),
+        })
+        .then(response => response.json())
+        .then(async data => {
+          // 3. Update Firestore based on backend result
+          if (data.success) {
+            console.log("Backend ingestion SUCCESS!");
+            await updateDoc(documentRef, { status: "READY" });
+          } else {
+            console.error("BACKEND INGESTION ERROR:", data.error);
+            await updateDoc(documentRef, { status: "FAILED" });
+          }
+        })
+        .catch(async err => {
+          console.error("PIPELINE ERROR:", err);
+          await updateDoc(documentRef, { status: "FAILED" });
         });
 
-        const data = await response.json();
-
-        // 3. Update Firestore based on backend result
-        if (response.ok && data.success) {
-          console.log("Backend ingestion SUCCESS!");
-          await updateDoc(documentRef, { status: "READY" });
-        } else {
-          console.error("BACKEND INGESTION ERROR:", data.error);
-          await updateDoc(documentRef, { status: "FAILED" });
-          setError("Processing failed: " + data.error);
-        }
-
-        setFile(null);
-        setProgress(0);
-        if (onUploadComplete) onUploadComplete();
-
       } catch (err: any) {
-        console.error("PIPELINE ERROR:", err); 
+        console.error("ERROR:", err); 
         setError("An error occurred: " + err.message);
       }
     },

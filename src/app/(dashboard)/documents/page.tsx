@@ -7,6 +7,7 @@ import { collection, query, orderBy, onSnapshot, deleteDoc, doc } from "firebase
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PdfUploader } from "@/components/docs/PdfUploader";
 import { Plus, FileText, Loader2, MessageSquare, Trash2, Search, Calendar, HardDrive } from "lucide-react";
 import Link from "next/link";
@@ -127,20 +128,26 @@ export default function DocumentsPage() {
           </p>
         </div>
         <Button 
-          onClick={() => setShowUploader(!showUploader)} 
-          variant={showUploader ? "outline" : "default"}
+          onClick={() => setShowUploader(true)} 
           className="shadow-sm transition-all hover:shadow-md h-11 px-6 rounded-full"
         >
-          {showUploader ? "Cancel Upload" : <><Plus className="mr-2 h-5 w-5" /> Upload Document</>}
+          <Plus className="mr-2 h-5 w-5" /> Upload Document
         </Button>
       </div>
 
-      {/* Uploader Section */}
-      {showUploader && (
-        <div className="animate-in fade-in slide-in-from-top-4 duration-300">
-          <PdfUploader onUploadComplete={() => setShowUploader(false)} />
-        </div>
-      )}
+      {/* Uploader Modal */}
+      <Dialog open={showUploader} onOpenChange={setShowUploader}>
+        <DialogContent className="sm:max-w-[600px] border-slate-200">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold bg-gradient-to-br from-slate-900 to-slate-500 bg-clip-text text-transparent">
+              Upload Document
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <PdfUploader onUploadComplete={() => setShowUploader(false)} />
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Content Section */}
       {loading ? (
@@ -161,18 +168,16 @@ export default function DocumentsPage() {
             <p className="text-slate-500 max-w-md mb-8 text-lg">
               Upload your first PDF to extract insights and chat with your data instantly.
             </p>
-            {!showUploader && (
-              <Button size="lg" onClick={() => setShowUploader(true)} className="shadow-md hover:shadow-lg transition-all rounded-full px-8">
-                <Plus className="mr-2 h-5 w-5" /> Upload your first file
-              </Button>
-            )}
+            <Button size="lg" onClick={() => setShowUploader(true)} className="shadow-md hover:shadow-lg transition-all rounded-full px-8">
+              <Plus className="mr-2 h-5 w-5" /> Upload your first file
+            </Button>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-6">
           {/* Toolbar */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
-            <div className="relative w-full sm:max-w-md">
+            <div className="relative w-full flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input 
                 placeholder="Search documents by name..." 
@@ -269,7 +274,7 @@ export default function DocumentsPage() {
 function StatusBadge({ status }: { status: DocumentRecord["status"] }) {
   const styles = {
     PENDING: "bg-slate-100 text-slate-600 border-slate-200/60",
-    PROCESSING: "bg-blue-50 text-blue-600 border-blue-200/60 animate-pulse ring-1 ring-blue-500/20",
+    PROCESSING: "bg-blue-50 text-blue-600 border-blue-200/60 ring-1 ring-blue-500/20",
     READY: "bg-emerald-50 text-emerald-600 border-emerald-200/60 ring-1 ring-emerald-500/20",
     FAILED: "bg-red-50 text-red-600 border-red-200/60 ring-1 ring-red-500/20",
   };
@@ -282,7 +287,8 @@ function StatusBadge({ status }: { status: DocumentRecord["status"] }) {
   };
 
   return (
-    <span className={`px-2.5 py-1 rounded-full text-[10px] uppercase tracking-wider font-bold border shadow-sm ${styles[status]}`}>
+    <span className={`px-2.5 py-1 flex items-center gap-1.5 rounded-full text-[10px] uppercase tracking-wider font-bold border shadow-sm ${styles[status]}`}>
+      {status === "PROCESSING" && <Loader2 className="h-3 w-3 animate-spin shrink-0" />}
       {labels[status]}
     </span>
   );
