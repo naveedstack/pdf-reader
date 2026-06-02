@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useRef, useEffect, useMemo, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Send, Bot, User, Loader2, AlertCircle } from "lucide-react";
+import { Bot, Loader2, AlertCircle } from "lucide-react";
+import MessageItem from "@/components/chat/MessageItem";
+import ChatInput from "@/components/chat/ChatInput";
 
 // TODO: Ensure this path matches exactly where you initialize Firebase in your project!
 import { db } from "@/lib/firebase/config"; 
@@ -18,7 +18,6 @@ export default function ChatPage() {
   const { user } = useAuth();
   const scrollRef = useRef<HTMLDivElement>(null);
   
-  const [inputText, setInputText] = useState("");
   const [isFetchingHistory, setIsFetchingHistory] = useState(true);
 
   // 1. Create the transport to handle the API route and the Body payload (Vercel v5 syntax)
@@ -96,14 +95,22 @@ export default function ChatPage() {
     }
   }, [messages, error]);
 
-  // --- 6. HANDLE USER SUBMIT ---
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputText.trim() || isLoading) return;
-    
-    // The new v5 way to send a message
-    sendMessage({ text: inputText });
-    setInputText("");
+  // --- 6. SEND MESSAGE HANDLER ---
+  const handleSendMessage = (text: string) => {
+    sendMessage({ text });
+  };
+
+  // --- 7. EDIT MESSAGE HANDLER ---
+  const handleSaveEdit = async (messageId: string, newText: string) => {
+    // Truncate messages state at the edited message and remove it and all subsequent messages
+    const messageIndex = messages.findIndex((m) => m.id === messageId);
+    if (messageIndex !== -1) {
+      const truncatedMessages = messages.slice(0, messageIndex);
+      setMessages(truncatedMessages);
+    }
+
+    // Resend the message
+    sendMessage({ text: newText });
   };
 
   return (
@@ -127,24 +134,12 @@ export default function ChatPage() {
         ) : (
           <div className="space-y-6 pb-2">
             {messages.map((m) => (
-              <div key={m.id} className={`flex w-full animate-in fade-in slide-in-from-bottom-2 duration-300 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`flex items-end gap-2 max-w-[85%] md:max-w-[75%] ${m.role === "user" ? "flex-row-reverse" : ""}`}>
-                  <div className={`p-2 rounded-full flex-shrink-0 shadow-sm ${m.role === "user" ? "bg-primary text-white" : "bg-white border text-primary"}`}>
-                    {m.role === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-                  </div>
-                  <div className={`px-4 py-3 rounded-2xl shadow-sm ${
-                    m.role === "user" 
-                      ? "bg-primary text-white rounded-br-sm" 
-                      : "bg-white border border-slate-100 text-slate-800 rounded-bl-sm"
-                  }`}>
-                    <div className="text-[15px] leading-relaxed whitespace-pre-wrap">
-                      {m.parts ? m.parts.map((part, index) => 
-                        part.type === 'text' ? <span key={index}>{part.text}</span> : null
-                      ) : (m as any).content}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <MessageItem
+                key={m.id}
+                message={m}
+                isLoading={isLoading}
+                onSaveEdit={handleSaveEdit}
+              />
             ))}
 
             {/* Error Message UI */}
@@ -183,23 +178,11 @@ export default function ChatPage() {
       </div>
 
       {/* Floating Input Form */}
-      <form onSubmit={handleSubmit} className="relative flex gap-2 p-2 border border-slate-200 rounded-2xl bg-white/80 backdrop-blur-md shadow-lg transition-all focus-within:shadow-xl focus-within:border-primary/30 mx-auto w-full shrink-0">
-        <Input
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          placeholder="Ask a question about this document..."
-          className="border-none focus-visible:ring-0 bg-transparent text-[15px] px-4 py-6 h-auto placeholder:text-slate-400"
-          disabled={isFetchingHistory}
-        />
-        <Button 
-          type="submit" 
-          size="icon"
-          className="h-auto w-12 rounded-xl shrink-0 transition-transform hover:scale-105 active:scale-95"
-          disabled={isLoading || !inputText.trim() || isFetchingHistory}
-        >
-          {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5 ml-0.5" />}
-        </Button>
-      </form>
+      <ChatInput
+        onSendMessage={handleSendMessage}
+        isLoading={isLoading}
+        isFetchingHistory={isFetchingHistory}
+      />
     </div>
   );
 }
