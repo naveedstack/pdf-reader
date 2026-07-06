@@ -15,6 +15,27 @@ const firebaseConfig = {
 };
 
 // Prevent re-initialization during hot reloads
+const isFirebaseConfigured = 
+  firebaseConfig.apiKey && 
+  firebaseConfig.apiKey !== "your_firebase_api_key" && 
+  firebaseConfig.apiKey !== "undefined";
+
+if (!isFirebaseConfigured) {
+  const errMsg = `
+========================================================================
+❌ FIREBASE CONFIGURATION ERROR
+The Firebase API Key (NEXT_PUBLIC_FIREBASE_API_KEY) is missing or invalid.
+
+Please do the following:
+1. Copy '.env.example' to '.env.local' in the root directory:
+   cp .env.example .env.local
+2. Populate the variables in '.env.local' with your Firebase project credentials.
+========================================================================
+`;
+  console.error(errMsg);
+  throw new Error("Firebase API Key is missing or invalid. Check your .env.local configuration.");
+}
+
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);

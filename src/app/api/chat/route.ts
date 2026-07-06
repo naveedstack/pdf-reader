@@ -50,7 +50,6 @@ export async function POST(req: Request) {
       system: `You are a helpful assistant specialized in analyzing documents. 
       Use the following pieces of retrieved context to answer the user's question. 
       If the answer is not in the context, say that you don't know based on the document, but don't make up information.
-      first give answer according to above instruction in last give me a context that you get or not(just for testing)
       
       CONTEXT:
       ${context}`,
