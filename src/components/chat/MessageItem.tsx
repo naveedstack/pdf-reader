@@ -16,7 +16,7 @@ export default function MessageItem({ message, isLoading, onSaveEdit }: MessageI
   const [editingText, setEditingText] = useState("");
 
   const getMessageText = (m: any) => {
-    if (m.parts && Array.isArray(m.parts)) {
+    if (m.parts && Array.isArray(m.parts) && m.parts.length > 0) {
       return m.parts.map((p: any) => (p.type === 'text' ? p.text : '')).join('');
     }
     return typeof m.content === 'string' ? m.content : '';
@@ -96,9 +96,7 @@ export default function MessageItem({ message, isLoading, onSaveEdit }: MessageI
                   : "bg-white border border-slate-100 text-slate-800 rounded-bl-sm"
               }`}>
                 <div className="text-[15px] leading-relaxed whitespace-pre-wrap">
-                  {message.parts ? (message.parts as any[]).map((part: any, index: number) => 
-                    part.type === 'text' ? <span key={index}>{part.text}</span> : null
-                  ) : (message as any).content}
+                  {messageText}
                 </div>
               </div>
 
