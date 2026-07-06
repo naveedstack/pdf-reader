@@ -1,16 +1,53 @@
 import { NextResponse } from "next/server";
-import { Pinecone } from "@pinecone-database/pinecone";
+import { getPineconeIndex } from "@/lib/pinecone";
 import { embedMany } from "ai";
 import { google } from "@ai-sdk/google";
 
-export const maxDuration = 60;
+// Polyfill missing browser globals in Node.js/Serverless environment for pdf-parse
+if (typeof global.DOMMatrix === "undefined") {
+  (global as any).DOMMatrix = class DOMMatrix {
+    a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
+    constructor(init?: string | number[]) {
+      if (Array.isArray(init)) {
+        this.a = init[0] ?? 1;
+        this.b = init[1] ?? 0;
+        this.c = init[2] ?? 0;
+        this.d = init[3] ?? 1;
+        this.e = init[4] ?? 0;
+        this.f = init[5] ?? 0;
+      }
+    }
+    toString() {
+      return `matrix(${this.a}, ${this.b}, ${this.c}, ${this.d}, ${this.e}, ${this.f})`;
+    }
+  };
+}
 
-const pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY! });
-const index = pc.index(process.env.PINECONE_INDEX_NAME!);
+if (typeof global.ImageData === "undefined") {
+  (global as any).ImageData = class ImageData {
+    data: Uint8ClampedArray;
+    width: number;
+    height: number;
+    constructor(width: number, height: number) {
+      this.width = width;
+      this.height = height;
+      this.data = new Uint8ClampedArray(width * height * 4);
+    }
+  };
+}
+
+if (typeof global.Path2D === "undefined") {
+  (global as any).Path2D = class Path2D {
+    constructor() {}
+  };
+}
+
+export const maxDuration = 60;
 
 export async function POST(req: Request) {
   try {
     const { fileUrl, documentId, workspaceId, fileName } = await req.json();
+    const index = getPineconeIndex();
     console.log(`Starting ingestion for document: ${fileName} (${documentId})`);
 
     // 1. Download File
@@ -129,7 +166,6 @@ export async function POST(req: Request) {
     const chunks: string[] = [];
     let currentChunk = "";
     const lines = rawText.split("\n");
-    console.log("lines -->", lines);
 
     for (const line of lines) {
       if ((currentChunk.length + line.length) > 1000) {

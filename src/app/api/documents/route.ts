@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { UTApi } from "uploadthing/server";
-import { Pinecone } from "@pinecone-database/pinecone";
+import { getPineconeIndex } from "@/lib/pinecone";
 
 const utapi = new UTApi();
-const pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY! });
-const index = pc.index(process.env.PINECONE_INDEX_NAME!);
 
 export async function DELETE(req: Request) {
   try {
     const { documentId, workspaceId, storageUrl } = await req.json();
+    const index = getPineconeIndex();
 
     if (!documentId || !workspaceId) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });

@@ -1,13 +1,11 @@
 import { google } from "@ai-sdk/google";
 import { streamText, embed } from "ai"; 
-import { Pinecone } from "@pinecone-database/pinecone";
-
-const pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY! });
-const index = pc.index(process.env.PINECONE_INDEX_NAME!);
+import { getPineconeIndex } from "@/lib/pinecone";
 
 export async function POST(req: Request) {
   try {
     const { messages, documentId, workspaceId } = await req.json();
+    const index = getPineconeIndex();
     
     // 1. Manually format frontend messages into safe backend messages
     const formattedMessages = messages.map((m: any) => ({
@@ -55,8 +53,6 @@ export async function POST(req: Request) {
       ${context}`,
       messages: formattedMessages,
     });
-
-    console.log("context retrieved -->", context);
 
     // 6. Return the specific UI Data Stream expected by your frontend version
     const res = result.toUIMessageStreamResponse(); 
