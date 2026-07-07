@@ -4,7 +4,7 @@ import { getPineconeIndex } from "@/lib/pinecone";
 
 export async function POST(req: Request) {
   try {
-    const { messages, documentId, workspaceId } = await req.json();
+    const { messages, documentId, documentIds, workspaceId } = await req.json();
     const index = getPineconeIndex();
     
     // 1. Manually format frontend messages into safe backend messages
@@ -28,9 +28,17 @@ export async function POST(req: Request) {
 
     // 3. Search Pinecone for the top 5 most relevant chunks
     const namespace = index.namespace(String(workspaceId));
+
+    let filter: any = undefined;
+    if (documentIds && Array.isArray(documentIds) && documentIds.length > 0) {
+      filter = { documentId: { $in: documentIds } };
+    } else if (documentId) {
+      filter = { documentId: { $eq: documentId } };
+    }
+
     const queryResponse = await namespace.query({
       vector: embedding,
-      filter: { documentId: { $eq: documentId } }, 
+      filter, 
       topK: 5,
       includeMetadata: true,
     });

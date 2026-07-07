@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
-import { FileText, LogOut, LayoutDashboard } from "lucide-react";
+import { FileText, LogOut, LayoutDashboard, MessageSquare } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase/config";
 import { usePathname, useRouter } from "next/navigation";
@@ -31,6 +31,14 @@ export default function Header() {
         <div className="flex items-center gap-4 animate-in fade-in duration-300">
           {user ? (
             <>
+              {pathname !== "/chat" && (
+                <Button asChild variant="outline" className="hidden sm:flex" size="sm">
+                  <Link href="/chat">
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Workspace Chat
+                  </Link>
+                </Button>
+              )}
               {pathname !== "/documents" && (
                 <Button asChild variant="outline" className="hidden sm:flex" size="sm">
                   <Link href="/documents">
